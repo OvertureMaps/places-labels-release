@@ -1,55 +1,95 @@
-# Project Title
+# places-labels-release
 
-Simple overview of use/purpose.
+Precomputed embedding and similarity lookup tables for Overture Maps Places matching, published as GitHub Releases.
 
-## Description
+The lookups hold text-embedding features for a curated set of labelled Places pairs, each pair being a candidate place and a baseline place. Places matching models use them as inputs for training and evaluation, so they can read precomputed values instead of running the embedding model themselves. The underlying labelled pairs aren't published, which keeps them useful as unbiased training and evaluation data.
 
-An in-depth paragraph about your project and overview of use.
+This repository contains only releases. It has no source code, and pull requests and issues are disabled.
 
-## Getting Started
+## Get the data
 
-### Dependencies
+Each release has three assets. Download them from the [Releases](https://github.com/OvertureMaps/places-labels-release/releases) page, or with the GitHub CLI:
 
-* Describe any prerequisites, libraries, OS version, etc., needed before installing program.
-* ex. Windows 10
-
-### Installing
-
-* How/where to download your program
-* Any modifications needed to be made to files/folders
-
-## Help
-
-Any advise for common problems or issues.
-```
-command to run if program contains helper info
+```bash
+gh release download v1.2.3 --repo OvertureMaps/places-labels-release
 ```
 
-## Authors
+Asset names are the same in every release. The version is in the release tag and in each parquet file's metadata.
 
-Contributors names and contact info
+Releases are immutable. A published release's tag and assets never change, so pinning a version always returns the same files.
 
-ex. Dominique Pizzie
-ex. [@DomPizzie](https://twitter.com/dompizzie)
+## Assets
 
-## Version History
+### `embedding_lookup.parquet`
 
-* 0.2
-    * Various bug fixes and optimizations
-    * See [commit change]() or See [release history]()
-* 0.1
-    * Initial Release
+Embeddings of the place names and taxonomy values that appear in the labelled pairs. One row per unique normalized string, so a string shared by many places is stored once.
 
-## Maintainers
+| Column | Type | Description |
+|---|---|---|
+| `text_hash` | string | Hash of the normalized text |
+| `field_type` | string | `name` or `taxonomy` |
+| `embedding` | int8[768] | Embedding vector for the string |
 
-This repository uses `MAINTAINERS.md` files to track ownership for [LFX Insights](https://insights.linuxfoundation.org/docs/introduction/maintainers/) ingestion. LFX scans the full repository tree, so these files can live anywhere.
+The key is (`text_hash`, `field_type`).
 
-To add a `MAINTAINERS.md` for a module or package, create it in the relevant directory using this format:
+### `cosine_similarity_lookup.parquet`
 
-```markdown
-# MAINTAINERS
+Precomputed similarity for each labelled pair of Overture places. Use it to get name and taxonomy similarity for a pair without computing embeddings.
 
-| Name     | GitHub Username | Role            | Affiliation |
-| -------- | --------------- | --------------- | ----------- |
-| Jane Doe | @janedoe        | Lead Maintainer | Org         |
+| Column | Type | Description |
+|---|---|---|
+| `id` | string | Overture place ID of the candidate |
+| `base_id` | string | Overture place ID of the baseline |
+| `name_cosine_similarity` | float | Cosine similarity of the two names' embeddings |
+| `taxonomy_cosine_similarity` | float | Cosine similarity of the two taxonomy values' embeddings |
+
+The key is (`id`, `base_id`). Join on these columns to attach similarity features to pair data.
+
+### `THIRD_PARTY_NOTICES.txt`
+
+Attribution, license notices, and full license texts for the data providers behind the labels. Redistribute this file with any derived data.
+
+## Usage
+
+DuckDB:
+
+```sql
+SELECT id, base_id, name_cosine_similarity
+FROM read_parquet('cosine_similarity_lookup.parquet')
+WHERE name_cosine_similarity > 0.9;
 ```
+
+DuckDB can also read a release asset directly over HTTPS:
+
+```sql
+SELECT *
+FROM read_parquet('https://github.com/OvertureMaps/places-labels-release/releases/download/v1.2.3/embedding_lookup.parquet')
+LIMIT 10;
+```
+
+Python:
+
+```python
+import pandas as pd
+
+similarity = pd.read_parquet("cosine_similarity_lookup.parquet")
+embeddings = pd.read_parquet("embedding_lookup.parquet")
+```
+
+Read the metadata recorded in each file:
+
+```python
+import pyarrow.parquet as pq
+
+print(pq.read_schema("embedding_lookup.parquet").metadata)
+```
+
+The metadata includes the embedding model revision and the release version. Use both lookup files from the same release together.
+
+## License
+
+The release assets are derived from third-party data and are licensed under the terms in each release's `THIRD_PARTY_NOTICES.txt`. The MIT license in this repository covers only the repository's own files, such as this README.
+
+## Contact
+
+Questions and feedback: [Overture Maps Discussions](https://github.com/orgs/OvertureMaps/discussions).
