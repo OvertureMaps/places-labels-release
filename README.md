@@ -101,7 +101,7 @@ Each file holds one row: a serialized [count-min sketch](https://en.wikipedia.or
 | `cms_bytes` | binary | Serialized count-min sketch, in the Apache Spark `CountMinSketch` binary format |
 | `num_docs` | int64 | Number of places the sketch was built from |
 
-Each sketch counts the number of places that contain a token, once per place. Text is normalized and tokenized by the `PlaceTextNormalizer` helper from tf-places-matcher-model, so tokens must be produced with the same normalizer version before querying the sketch.
+Each sketch counts the number of places that contain a token, once per place. Text is normalized and tokenized before counting, so tokens must be produced with the same normalizer version (recorded as `normalizer_version` in the file metadata) before querying the sketch.
 
 Sketches are approximate: a count can be over-estimated, never under-estimated. The file metadata records the sketch parameters (`cms_eps`, `cms_confidence`, `cms_seed`) and the inputs the sketch was built from (`places_release`, `normalizer_version`).
 
